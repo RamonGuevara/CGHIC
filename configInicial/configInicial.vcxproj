@@ -19,11 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Texturizado.cpp" />
+    <None Include="Shader\modelLoading.frag" />
+    <None Include="Shader\modelLoading.vs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\lamp.frag" />
-    <None Include="Shader\lamp.vs" />
+    <ClCompile Include="Carga de Modelos.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
