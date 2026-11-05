@@ -46,12 +46,6 @@ GLfloat lastFrame = 0.0f;
 float rot = 0.0f;
 bool activanim = false;
 
-glm::vec3 lightOffset(0.0f);               // Desplazamiento luz 1
-
-glm::vec3 gatoPos(-1.5f, 0.0f, 2.5f);      // Posición del gato = posición de la luz 2
-glm::vec3 gatoOffset(0.0f);                // Desplazamiento del gato
-glm::vec3 gatoLuzLocal(0.0f, 0.3f, 0.0f);  // Dónde está la luz respecto al gato (ajusta a tu modelo)
-float gatoScale = 0.3f;                    // Escala del gato (ajusta a tu modelo)
 int main()
 {
     // Init GLFW
@@ -181,14 +175,14 @@ int main()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 
     image = stbi_load("Models/Texture_albedo.jpg", &textureWidth, &textureHeight, &nrChannels, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+    glGenerateMipmap(GL_TEXTURE_2D);
     if (image)
     {
-        GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-        glTexImage2D(GL_TEXTURE_2D, 0, format, textureWidth, textureHeight, 0, format, GL_UNSIGNED_BYTE, image);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     else
@@ -215,67 +209,72 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         
-        
-        // Posiciones finales
-        glm::vec3 pos1 = lightPos + lightOffset;
-        glm::vec3 posGato = gatoPos + gatoOffset;
-        glm::vec3 pos2 = posGato + gatoLuzLocal;   // la luz sale del gato
+        lightingShader.Use();
+        GLint lightPosLoc = glGetUniformLocation(lightingShader.Program, "light.position");
+        GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos");
+        glUniform3f(lightPosLoc, lightPos.x + movelightPos, lightPos.y + movelightPos, lightPos.z + movelightPos);
+        glUniform3f(viewPosLoc, camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
+
+
+        // Set lights properties
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "light.ambient"),0.0f,0.2f,0.8f);
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "light.diffuse"), 0.0f, 0.6f, 0.9f);
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "light.specular"), 0.9f, 0.9f, 0.9f);
+
+
+
 
         glm::mat4 view = camera.GetViewMatrix();
+        glUniformMatrix4fv(glGetUniformLocation(lightingShader.Program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(lightingShader.Program, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
-        // ================= Shader de iluminación =================
-        lightingShader.Use();
-        GLuint prog = lightingShader.Program;
+        // Set material properties
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "material.ambient"), 0.4f, 0.5f, 0.6f);
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0.4f, 0.5f, 0.6f);
+        glUniform3f(glGetUniformLocation(lightingShader.Program, "material.specular"), 0.4f, 0.5f, 0.6f);
+        glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 1.0f);
 
-        glUniform3f(glGetUniformLocation(prog, "viewPos"),
-            camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
 
-        // ---- Luz 1 (cubo, azulada) ----
-        glUniform3f(glGetUniformLocation(prog, "light.position"), pos1.x, pos1.y, pos1.z);
-        glUniform3f(glGetUniformLocation(prog, "light.ambient"), 0.0f, 0.2f, 0.8f);
-        glUniform3f(glGetUniformLocation(prog, "light.diffuse"), 0.0f, 0.6f, 0.9f);
-        glUniform3f(glGetUniformLocation(prog, "light.specular"), 0.9f, 0.9f, 0.9f);
 
-        // ---- Luz 2 (gato, anaranjada, independiente) ----
-        glUniform3f(glGetUniformLocation(prog, "gatoLight.position"), pos2.x, pos2.y, pos2.z);
-        glUniform3f(glGetUniformLocation(prog, "gatoLight.ambient"), 0.2f, 0.1f, 0.0f);
-        glUniform3f(glGetUniformLocation(prog, "gatoLight.diffuse"), 0.9f, 0.5f, 0.1f);
-        glUniform3f(glGetUniformLocation(prog, "gatoLight.specular"), 1.0f, 0.8f, 0.5f);
 
-        glUniformMatrix4fv(glGetUniformLocation(prog, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(prog, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
-        // Material
-        glUniform3f(glGetUniformLocation(prog, "material.ambient"), 0.4f, 0.5f, 0.6f);
-        glUniform3f(glGetUniformLocation(prog, "material.diffuse"), 0.4f, 0.5f, 0.6f);
-        glUniform3f(glGetUniformLocation(prog, "material.specular"), 0.4f, 0.5f, 0.6f);
-        glUniform1f(glGetUniformLocation(prog, "material.shininess"), 32.0f);
-
-        // ---- Perro (iluminado por ambas luces) ----
-        glm::mat4 model(1.0f);
-        model = glm::scale(model, glm::vec3(3.0f));
-        glUniformMatrix4fv(glGetUniformLocation(prog, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        // Draw the loaded model
+        glm::mat4 model(1);
+        model = glm::scale(model, glm::vec3(3.0f, 3.0f, 3.0f));
+        glUniformMatrix4fv(glGetUniformLocation(lightingShader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glBindVertexArray(VAO);
+       
         red_dog.Draw(lightingShader);
+        
 
-        // ================= Shader de lámpara =================
+        glBindVertexArray(0);
+
+
+
+
         lampshader.Use();
-        GLuint lampProg = lampshader.Program;
-        glUniformMatrix4fv(glGetUniformLocation(lampProg, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(lampProg, "view"), 1, GL_FALSE, glm::value_ptr(view));
-
-        // ---- Cubo de la luz 1 ----
-        model = glm::translate(glm::mat4(1.0f), pos1);
+        glUniformMatrix4fv(glGetUniformLocation(lampshader.Program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(lampshader.Program, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, lightPos + movelightPos);
         model = glm::scale(model, glm::vec3(0.3f));
-        glUniformMatrix4fv(glGetUniformLocation(lampProg, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(lampshader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
 
-        // ---- Gato = luz 2 (reemplaza al segundo cubo) ----
-        model = glm::translate(glm::mat4(1.0f), posGato);
-        model = glm::scale(model, glm::vec3(gatoScale));
-        glUniformMatrix4fv(glGetUniformLocation(lampProg, "model"), 1, GL_FALSE, glm::value_ptr(model));
-        gato.Draw(lampshader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-2.0f, -2.0f, 0.0f));
+        model = glm::translate(model, lightPos + movelightPos2);
+        model = glm::scale(model, glm::vec3(0.3f));
+        glUniformMatrix4fv(glGetUniformLocation(lampshader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+
+
+        // Swap the buffers
         glfwSwapBuffers(window);
     }
 
@@ -339,21 +338,29 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
         }
     }
 
-    const float s = 100.0f * deltaTime;
+    if (keys[GLFW_KEY_O])
+    {
+       
+        movelightPos += 0.1f;
+    }
 
-    // Luz 1 (cubo): O/L = eje X, U/J = eje Y
-    if (keys[GLFW_KEY_O]) lightOffset.x += s;
-    if (keys[GLFW_KEY_L]) lightOffset.x -= s;
-    if (keys[GLFW_KEY_U]) lightOffset.y += s;
-    if (keys[GLFW_KEY_J]) lightOffset.y -= s;
+    if (keys[GLFW_KEY_L])
+    {
+        
+        movelightPos -= 0.1f;
+    }
 
-    // Luz 2 (gato): I/K = eje X, T/G = eje Y, Y/H = eje Z
-    if (keys[GLFW_KEY_I]) gatoOffset.x += s;
-    if (keys[GLFW_KEY_K]) gatoOffset.x -= s;
-    if (keys[GLFW_KEY_T]) gatoOffset.y += s;
-    if (keys[GLFW_KEY_G]) gatoOffset.y -= s;
-    if (keys[GLFW_KEY_Y]) gatoOffset.z += s;
-    if (keys[GLFW_KEY_H]) gatoOffset.z -= s;
+    if (keys[GLFW_KEY_I])
+    {
+
+        movelightPos2 += 0.1f;
+    }
+
+    if (keys[GLFW_KEY_K])
+    {
+
+        movelightPos2 -= 0.1f;
+    }
 
 }
 
